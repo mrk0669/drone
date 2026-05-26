@@ -1,5 +1,6 @@
 from drone_2d_custom_gym_env.Drone import *
 from drone_2d_custom_gym_env.event_handler import *
+from drone_2d_custom_gym_env.chat_panel import ChatPanel   # ← NEW
 
 import gym
 from gym import spaces
@@ -7,6 +8,11 @@ from gym.utils import seeding
 import numpy as np
 import random
 import os
+
+# Width of the simulation viewport (original 800px)
+SIM_WIDTH   = 800
+PANEL_WIDTH = 300   # chat sidebar
+
 
 class Drone2dEnv(gym.Env):
     """
@@ -18,14 +24,17 @@ class Drone2dEnv(gym.Env):
     n_fall_steps: (int) the number of initial steps for which the drone can't do anything
     change_target: (bool) if true, mouse click change target positions
     initial_throw: (bool) if true, the drone is initially thrown with random force
+    chat: (bool) if true, shows the interactive chat panel   ← NEW
     """
 
     def __init__(self, render_sim=False, render_path=True, render_shade=True, shade_distance=70,
-                 n_steps=500, n_fall_steps=10, change_target=False, initial_throw=True):
+                 n_steps=500, n_fall_steps=10, change_target=False, initial_throw=True,
+                 chat=False):   # ← NEW parameter
 
         self.render_sim = render_sim
         self.render_path = render_path
         self.render_shade = render_shade
+        self.chat_enabled = chat and render_sim   # chat only makes sense with render
 
         if self.render_sim is True:
             self.init_pygame()
@@ -66,7 +75,9 @@ class Drone2dEnv(gym.Env):
 
     def init_pygame(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((800, 800))
+        # Expand window width if chat panel is requested
+        win_w = SIM_WIDTH + (PANEL_WIDTH if getattr(self, 'chat_enabled', False) else 0)
+        self.screen = pygame.display.set_mode((win_w, 800))
         pygame.display.set_caption("Drone2d Environment")
         self.clock = pygame.time.Clock()
 
@@ -78,6 +89,12 @@ class Drone2dEnv(gym.Env):
         img_path = os.path.join("img", "shade.png")
         img_path = os.path.join(script_dir, img_path)
         self.shade_image = pygame.image.load(img_path)
+
+        # Instantiate chat panel if enabled
+        if getattr(self, 'chat_enabled', False):
+            self.chat = ChatPanel(screen_height=800)
+        else:
+            self.chat = None
 
     def init_pymunk(self):
         self.space = pymunk.Space()
@@ -96,7 +113,43 @@ class Drone2dEnv(gym.Env):
 
         self.drone_radius = self.drone.drone_radius
 
+    # ── NEW: process chat commands ─────────────────────────────────────────────
+    def _process_chat_command(self):
+        if self.chat is None:
+            return
+        cmd = self.chat.get_pending_command()
+        if cmd is None:
+            return
+        name, args = cmd
+        self.chat.clear_pending_command()
+
+        if name == "target":
+            self.x_target, self.y_target = args[0], args[1]
+
+        elif name == "reset":
+            self.done = True   # will trigger reset on next env.reset() call
+
+        elif name == "gravity":
+            self.space.gravity = Vec2d(0, -abs(args[0]))
+
+        elif name == "force":
+            # force override is handled in step() via chat.force_override
+            pass
+    # ──────────────────────────────────────────────────────────────────────────
+
     def step(self, action):
+        # ── Chat pause ────────────────────────────────────────────────────────
+        if self.chat is not None and self.chat.paused:
+            self._render_frame()
+            obs = self.get_observation()
+            return obs, 0.0, self.done, self.info
+
+        # ── Force override from chat ──────────────────────────────────────────
+        if self.chat is not None and self.chat.force_override is not None:
+            lf, rf = self.chat.force_override
+            action = np.array([(lf / self.froce_scale - 0.5) * 2,
+                                (rf / self.froce_scale - 0.5) * 2], dtype=np.float32)
+
         if self.first_step is True:
             if self.render_sim is True and self.render_path is True: self.add_postion_to_drop_path()
             if self.render_sim is True and self.render_shade is True: self.add_drone_shade()
@@ -138,6 +191,9 @@ class Drone2dEnv(gym.Env):
         if self.current_time_step == self.max_time_steps:
             self.done = True
 
+        # Process any chat command that arrived this frame
+        self._process_chat_command()
+
         return obs, reward, self.done, self.info
 
     def get_observation(self):
@@ -170,16 +226,16 @@ class Drone2dEnv(gym.Env):
 
         return np.array([velocity_x, velocity_y, omega, alpha, distance_x, distance_y, pos_x, pos_y])
 
-    def render(self, mode='human', close=False):
-        if self.render_sim is False: return
-
-        pygame_events(self.space, self, self.change_target)
+    # ── NEW: helper so render() and pause path both call the same draw logic ───
+    def _render_frame(self):
+        if self.render_sim is False:
+            return
+        pygame_events_chat(self.space, self, self.change_target, self.chat)
         self.screen.fill((243, 243, 243))
         pygame.draw.rect(self.screen, (24, 114, 139), pygame.Rect(0, 0, 800, 800), 8)
         pygame.draw.rect(self.screen, (33, 158, 188), pygame.Rect(50, 50, 700, 700), 4)
         pygame.draw.rect(self.screen, (142, 202, 230), pygame.Rect(200, 200, 400, 400), 4)
 
-        #Drawing done's shade
         if len(self.path_drone_shade):
             for shade in self.path_drone_shade:
                 image_rect_rotated = pygame.transform.rotate(self.shade_image, shade[2]*180.0/np.pi)
@@ -188,7 +244,6 @@ class Drone2dEnv(gym.Env):
 
         self.space.debug_draw(self.draw_options)
 
-        #Drawing vectors of motor forces
         vector_scale = 0.05
         l_x_1, l_y_1 = self.drone.frame_shape.body.local_to_world((-self.drone_radius, 0))
         l_x_2, l_y_2 = self.drone.frame_shape.body.local_to_world((-self.drone_radius, self.froce_scale*vector_scale))
@@ -206,19 +261,30 @@ class Drone2dEnv(gym.Env):
 
         pygame.draw.circle(self.screen, (255, 0, 0), (self.x_target, 800-self.y_target), 5)
 
-        #Drawing drone's path
         if len(self.flight_path) > 2:
             pygame.draw.aalines(self.screen, (16, 19, 97), False, self.flight_path)
 
         if len(self.drop_path) > 2:
             pygame.draw.aalines(self.screen, (255, 0, 0), False, self.drop_path)
 
+        # Draw chat panel on the right side ← NEW
+        if self.chat is not None:
+            self.chat.draw(self.screen, SIM_WIDTH)
+
         pygame.display.flip()
         self.clock.tick(60)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def render(self, mode='human', close=False):
+        self._render_frame()
 
     def reset(self):
+        old_chat = getattr(self, 'chat', None)   # preserve chat instance across resets
         self.__init__(self.render_sim, self.render_path, self.render_shade, self.drone_shade_distance,
-                      self.max_time_steps, self.stabilisation_delay, self.change_target, self.initial_throw)
+                      self.max_time_steps, self.stabilisation_delay, self.change_target, self.initial_throw,
+                      chat=self.chat_enabled)
+        if old_chat is not None:
+            self.chat = old_chat   # keep history alive
         return self.get_observation()
 
     def close(self):

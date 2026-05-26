@@ -20,7 +20,7 @@ class Drone():
 
         self.frame_shape.body = frame_body
         self.frame_shape.sensor = True
-        self.frame_shape.color = pygame.Color((66, 135, 245))
+        self.frame_shape.color = pygame.Color((255, 105, 180))
 
         space.add(frame_body, self.frame_shape)
 
@@ -34,7 +34,7 @@ class Drone():
 
         self.left_motor_shape.body = left_motor_body
         self.left_motor_shape.sensor = True
-        self.left_motor_shape.color = pygame.Color((33, 93, 191))
+        self.left_motor_shape.color = pygame.Color((199, 21, 133))
 
         space.add(left_motor_body, self.left_motor_shape)
 
@@ -48,7 +48,7 @@ class Drone():
 
         self.right_motor_shape.body = right_motor_body
         self.right_motor_shape.sensor = True
-        self.right_motor_shape.color = pygame.Color((33, 93, 191))
+        self.right_motor_shape.color = pygame.Color((199, 21, 133))
 
         space.add(right_motor_body, self.right_motor_shape)
 
