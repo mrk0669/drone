@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone 2D — by mr. KESHAV</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #0d0d1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: white;
+    overflow: hidden;
+  }
+  #header {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  #header h1 {
+    font-size: 22px;
+    color: #ff69b4;
+    text-shadow: 0 0 12px #ff69b488;
+    letter-spacing: 3px;
+    font-weight: bold;
+  }
+  #header .byline {
+    font-size: 11px;
+    color: #6b7280;
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+  #game-wrap {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  canvas {
+    border: 2px solid #22d3ee;
+    box-shadow: 0 0 24px #22d3ee33, inset 0 0 40px #00000066;
+    display: block;
+  }
+  #sidebar {
+    width: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel {
+    background: #13132b;
+    border: 1px solid #252545;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .panel h3 {
+    font-size: 10px;
+    color: #6b7280;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #252545;
+    padding-bottom: 5px;
+  }
+  .score-val {
+    font-size: 28px;
+    color: #ff69b4;
+    font-weight: bold;
+    text-shadow: 0 0 10px #ff69b466;
+  }
+  .hi-val {
+    font-size: 13px;
+    color: #facc15;
+    margin-top: 2px;
+  }
+  .bar-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:11px; }
+  .bar-label { width:28px; color:#9ca3af; }
+  .bar-bg { flex:1; height:8px; background:#1e1e3a; border-radius:4px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:4px; transition: width 0.05s; }
+  .lf-fill  { background: linear-gradient(90deg,#ff69b4,#ff1493); }
+  .rf-fill  { background: linear-gradient(90deg,#22d3ee,#0ea5e9); }
+  .thr-fill { background: linear-gradient(90deg,#4ade80,#22c55e); }
+  .key-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; text-align:center; }
+  .key {
+    background: #1e1e3a;
+    border: 1px solid #303060;
+    border-radius: 5px;
+    padding: 6px 4px;
+    font-size: 11px;
+    transition: all 0.08s;
+  }
+  .key.active { background:#ff69b4; color:#0d0d1a; border-color:#ff69b4; box-shadow:0 0 8px #ff69b4; }
+  .key-empty { opacity:0; }
+  .key-desc { font-size:9px; color:#6b7280; margin-top:2px; }
+  #status-text { font-size:11px; color:#22d3ee; text-align:center; min-height:16px; }
+  .stat-row { display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px; }
+  .stat-label { color:#6b7280; }
+  .stat-val   { color:#e5e7eb; font-weight:bold; }
+  #footer {
+    margin-top: 8px;
+    font-size: 10px;
+    color: #374151;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+  #footer span { color: #ff69b4; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>&#x2708; DRONE 2D</h1>
+  <div class="byline">MADE BY MR. KESHAV &nbsp;|&nbsp; PINK DRONE RL PROJECT</div>
+</div>
+
+<div id="game-wrap">
+  <canvas id="c" width="700" height="700"></canvas>
+
+  <div id="sidebar">
+
+    <!-- Score -->
+    <div class="panel">
+      <h3>Score</h3>
+      <div class="score-val" id="score-disp">0</div>
+      <div class="hi-val">&#x2605; Best: <span id="hi-disp">0</span></div>
+    </div>
+
+    <!-- Motor bars -->
+    <div class="panel">
+      <h3>Motors</h3>
+      <div class="bar-row">
+        <span class="bar-label">LF</span>
+        <div class="bar-bg"><div class="bar-fill lf-fill" id="lf-bar" style="width:0%"></div></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">RF</span>
+        <div class="bar-bg"><div class="bar-fill rf-fill" id="rf-bar" style="width:0%"></div></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">THR</span>
+        <div class="bar-bg"><div class="bar-fill thr-fill" id="thr-bar" style="width:50%"></div></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel">
+      <h3>Controls</h3>
+      <div class="key-grid">
+        <div class="key-empty"></div>
+        <div class="key" id="k-w">W<br><span class="key-desc">UP</span></div>
+        <div class="key-empty"></div>
+        <div class="key" id="k-a">A<br><span class="key-desc">LEFT</span></div>
+        <div class="key" id="k-s">S<br><span class="key-desc">DOWN</span></div>
+        <div class="key" id="k-d">D<br><span class="key-desc">RIGHT</span></div>
+        <div class="key-empty"></div>
+        <div class="key" id="k-h">H<br><span class="key-desc">HOVER</span></div>
+        <div class="key-empty"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <h3>Stats</h3>
+      <div class="stat-row"><span class="stat-label">Targets hit</span><span class="stat-val" id="st-targets">0</span></div>
+      <div class="stat-row"><span class="stat-label">Steps</span><span class="stat-val" id="st-steps">0</span></div>
+      <div class="stat-row"><span class="stat-label">Angle</span><span class="stat-val" id="st-angle">0°</span></div>
+      <div class="stat-row"><span class="stat-label">Vel X</span><span class="stat-val" id="st-vx">0</span></div>
+      <div class="stat-row"><span class="stat-label">Vel Y</span><span class="stat-val" id="st-vy">0</span></div>
+      <div id="status-text">Fly to the target!</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="footer">
+  &#x2665; <span>mrk0669</span> &nbsp;|&nbsp; Pink Drone RL &nbsp;|&nbsp;
+  Press <span>R</span> to restart &nbsp;|&nbsp; Physics: pymunk-accurate
+</div>
+
+<script>
+// ── Physics constants (exact match to Python env) ─────────────────────────
+const DT          = 1/60;
+const GRAVITY     = -1000;
+const MASS        = 1.0;
+const INERTIA     = 1500.0;
+const DRONE_R     = 40.0;   // half-wingspan
+const FORCE_MAX   = 1000.0;
+const WORLD       = 800;    // logical world size
+const CANVAS_S    = 700;    // canvas pixel size
+const SC          = CANVAS_S / WORLD;  // scale factor
+
+// ── Game state ────────────────────────────────────────────────────────────
+let s, target, throttle, diff, score, hiScore, gameOver, step, targets,
+    propA, trail, lf_cur, rf_cur, reason;
+
+function randRange(a,b){ return a + Math.random()*(b-a); }
+
+function resetGame() {
+  s = {
+    x: randRange(200,600), y: randRange(200,600),
+    vx: randRange(-30,30), vy: randRange(-30,30),
+    angle: randRange(-0.4,0.4), omega: randRange(-0.3,0.3)
+  };
+  target   = newTarget();
+  throttle = 500;
+  diff     = 0;
+  score    = 0;
+  step     = 0;
+  targets  = 0;
+  propA    = [0,0];
+  trail    = [];
+  lf_cur   = 500;
+  rf_cur   = 500;
+  gameOver = false;
+  reason   = '';
+  hiScore  = hiScore || 0;
+}
+
+function newTarget() {
+  return { x: randRange(60,740), y: randRange(60,740) };
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if(['w','a','s','d','h',' '].includes(e.key.toLowerCase())) e.preventDefault();
+  if(e.key.toLowerCase() === 'r') resetGame();
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+const THROT_RATE = 18;
+const DIFF_RATE  = 16;
+const DIFF_DECAY = 0.90;
+
+function computeForces() {
+  if(gameOver) return {lf:0, rf:0};
+  if(keys['w']) throttle = Math.min(FORCE_MAX, throttle + THROT_RATE);
+  if(keys['s']) throttle = Math.max(0,          throttle - THROT_RATE);
+  // A=left → rf > lf (CCW tilt → leftward thrust component)
+  if(keys['a'])      diff = Math.min( 400, diff + DIFF_RATE);
+  else if(keys['d']) diff = Math.max(-400, diff - DIFF_RATE);
+  else               diff *= DIFF_DECAY;
+  if(keys['h']) {   // hover: stabilise throttle ≈ 500, kill differential
+    throttle = throttle*0.88 + 500*0.12;
+    diff     = diff*0.80;
+  }
+  const lf = Math.max(0, Math.min(FORCE_MAX, throttle - diff));
+  const rf = Math.max(0, Math.min(FORCE_MAX, throttle + diff));
+  return {lf, rf};
+}
+
+// ── Physics ───────────────────────────────────────────────────────────────
+function physicsStep(lf, rf) {
+  const thrust = lf + rf;
+  const ax = -thrust * Math.sin(s.angle) / MASS;
+  const ay =  thrust * Math.cos(s.angle) / MASS + GRAVITY;
+  const alpha = DRONE_R * (rf - lf) / INERTIA;
+  s.vx += ax * DT;  s.vy += ay * DT;
+  s.omega += alpha * DT;
+  s.x += s.vx * DT; s.y += s.vy * DT;
+  s.angle += s.omega * DT;
+}
+
+function checkDone() {
+  if(s.x < 0 || s.x > WORLD || s.y < 0 || s.y > WORLD) return 'Out of bounds!';
+  if(Math.abs(s.angle) >= Math.PI/2) return 'Drone flipped!';
+  return null;
+}
+
+// ── Draw helpers ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+// world-Y → canvas-Y
+function cy(y){ return CANVAS_S - y * SC; }
+function cx(x){ return x * SC; }
+
+function drawBorders() {
+  // outer
+  ctx.strokeStyle='#18728b'; ctx.lineWidth=7;
+  ctx.strokeRect(3,3,CANVAS_S-6,CANVAS_S-6);
+  // mid
+  ctx.strokeStyle='#219ebc'; ctx.lineWidth=3;
+  ctx.strokeRect(50*SC,50*SC,700*SC,700*SC);
+  // inner safe zone
+  ctx.strokeStyle='#8ecae640'; ctx.lineWidth=2;
+  ctx.strokeRect(200*SC,200*SC-CANVAS_S*(400/800),400*SC,400*SC);
+}
+
+function drawGrid() {
+  ctx.strokeStyle='#1a1a3a';
+  ctx.lineWidth=0.4;
+  for(let i=0;i<=8;i++){
+    const v = i/8*CANVAS_S;
+    ctx.beginPath(); ctx.moveTo(v,0); ctx.lineTo(v,CANVAS_S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,v); ctx.lineTo(CANVAS_S,v); ctx.stroke();
+  }
+}
+
+let pulseT = 0;
+function drawTarget() {
+  pulseT += 0.07;
+  const tx = cx(target.x), ty_ = cy(target.y);
+  const pulse = 0.6 + 0.4*Math.sin(pulseT);
+
+  // outer ring
+  ctx.strokeStyle = `rgba(255,0,0,${pulse*0.5})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(tx, ty_, 22*pulse, 0, Math.PI*2); ctx.stroke();
+
+  // crosshair
+  ctx.strokeStyle = '#ff3333';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(tx-16,ty_); ctx.lineTo(tx+16,ty_); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tx,ty_-16); ctx.lineTo(tx,ty_+16); ctx.stroke();
+
+  // dot
+  ctx.fillStyle='#ff0000';
+  ctx.beginPath(); ctx.arc(tx, ty_, 5, 0, Math.PI*2); ctx.fill();
+}
+
+function drawTrail() {
+  if(trail.length < 2) return;
+  for(let i=1;i<trail.length;i++){
+    const a = (i/trail.length)*0.6;
+    ctx.strokeStyle = `rgba(255,105,180,${a})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx(trail[i-1][0]), cy(trail[i-1][1]));
+    ctx.lineTo(cx(trail[i][0]),   cy(trail[i][1]));
+    ctx.stroke();
+  }
+}
+
+function drawDrone(lf, rf) {
+  const dx = cx(s.x), dy_ = cy(s.y);
+  ctx.save();
+  ctx.translate(dx, dy_);
+  ctx.rotate(-s.angle);  // negate: canvas y-down vs world y-up
+
+  const sc = SC;
+
+  // ── Propellers (above motors) ──
+  const pSpeed = (lf+rf)/3000;
+  propA[0] += pSpeed * (1 + diff/400);
+  propA[1] += pSpeed * (1 - diff/400);
+
+  function drawProp(mx, spinAngle, speed) {
+    ctx.save();
+    ctx.translate(mx, -14*sc);
+    ctx.rotate(spinAngle);
+    // Blur effect: multiple lines at slight angles
+    for(let b=0;b<3;b++){
+      ctx.strokeStyle = `rgba(255,179,217,${0.6-b*0.15})`;
+      ctx.lineWidth = 2*sc;
+      ctx.beginPath();
+      ctx.moveTo(-18*sc, b*2*sc); ctx.lineTo(18*sc, -b*2*sc);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(b*2*sc, -18*sc); ctx.lineTo(-b*2*sc, 18*sc);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  drawProp(-DRONE_R*sc, propA[0],  lf);
+  drawProp( DRONE_R*sc, -propA[1], rf);
+
+  // ── Motor cans ──
+  ctx.fillStyle   = '#c71585';
+  ctx.strokeStyle = '#8b0057';
+  ctx.lineWidth   = 0.8*sc;
+  ctx.fillRect((-DRONE_R-10)*sc, -10*sc, 20*sc, 18*sc);
+  ctx.strokeRect((-DRONE_R-10)*sc, -10*sc, 20*sc, 18*sc);
+  ctx.fillRect( (DRONE_R-10)*sc, -10*sc, 20*sc, 18*sc);
+  ctx.strokeRect((DRONE_R-10)*sc, -10*sc, 20*sc, 18*sc);
+
+  // ── Frame body ──
+  ctx.fillStyle   = '#ff69b4';
+  ctx.strokeStyle = '#c71585';
+  ctx.lineWidth   = 1*sc;
+  ctx.beginPath();
+  ctx.roundRect(-52*sc, -6*sc, 104*sc, 12*sc, 3*sc);
+  ctx.fill(); ctx.stroke();
+
+  // Top cap detail
+  ctx.fillStyle = '#ff1493';
+  ctx.fillRect(-14*sc, -12*sc, 28*sc, 8*sc);
+
+  // LED lights
+  ctx.fillStyle='#22c55e';  // green front
+  ctx.beginPath(); ctx.arc(-DRONE_R*sc, -12*sc, 3*sc, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ef4444';  // red rear
+  ctx.beginPath(); ctx.arc( DRONE_R*sc, -12*sc, 3*sc, 0, Math.PI*2); ctx.fill();
+
+  // ── Thrust force arrows ──
+  const AMAX = 58*sc;
+  const lfH  = (lf/FORCE_MAX) * AMAX;
+  const rfH  = (rf/FORCE_MAX) * AMAX;
+
+  // Gray max reference
+  ctx.strokeStyle='rgba(170,170,170,0.4)'; ctx.lineWidth=3*sc;
+  ctx.beginPath(); ctx.moveTo(-DRONE_R*sc,0); ctx.lineTo(-DRONE_R*sc,-AMAX); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( DRONE_R*sc,0); ctx.lineTo( DRONE_R*sc,-AMAX); ctx.stroke();
+
+  // Red actual force
+  ctx.strokeStyle='#ff3333'; ctx.lineWidth=3*sc;
+  ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-DRONE_R*sc,0); ctx.lineTo(-DRONE_R*sc,-lfH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( DRONE_R*sc,0); ctx.lineTo( DRONE_R*sc,-rfH); ctx.stroke();
+
+  // Arrow heads
+  function arrowHead(ax2, ay2) {
+    ctx.fillStyle='#ff3333';
+    ctx.beginPath();
+    ctx.moveTo(ax2, ay2);
+    ctx.lineTo(ax2-4*sc, ay2+8*sc);
+    ctx.lineTo(ax2+4*sc, ay2+8*sc);
+    ctx.closePath(); ctx.fill();
+  }
+  if(lfH > 5*sc) arrowHead(-DRONE_R*sc, -lfH);
+  if(rfH > 5*sc) arrowHead( DRONE_R*sc, -rfH);
+
+  ctx.restore();
+
+  // Centre dot
+  ctx.fillStyle='white';
+  ctx.beginPath(); ctx.arc(dx, dy_, 3*sc, 0, Math.PI*2); ctx.fill();
+}
+
+function drawHUD() {
+  // Angle indicator bar at bottom of canvas
+  const barW = CANVAS_S * 0.5;
+  const barH = 6;
+  const barX = (CANVAS_S - barW)/2;
+  const barY = CANVAS_S - 18;
+  ctx.fillStyle='#1e1e3a';
+  ctx.fillRect(barX, barY, barW, barH);
+  const normA = (s.angle / (Math.PI/2));
+  const fill  = Math.abs(normA) * barW/2;
+  ctx.fillStyle = Math.abs(normA) > 0.7 ? '#ef4444' : '#ff69b4';
+  if(normA < 0)
+    ctx.fillRect(barX + barW/2 + normA*(barW/2), barY, fill, barH);
+  else
+    ctx.fillRect(barX + barW/2, barY, fill, barH);
+  // Centre mark
+  ctx.fillStyle='#6b7280';
+  ctx.fillRect(barX+barW/2-1, barY-2, 2, barH+4);
+
+  // Label
+  ctx.fillStyle='#6b7280'; ctx.font=`${9}px Courier New`;
+  ctx.fillText('TILT', barX-28, barY+barH-1);
+}
+
+function drawGameOver() {
+  ctx.fillStyle='rgba(13,13,26,0.82)';
+  ctx.fillRect(0,0,CANVAS_S,CANVAS_S);
+
+  ctx.textAlign='center';
+  ctx.fillStyle='#ef4444';
+  ctx.font='bold 36px Courier New';
+  ctx.fillText('GAME OVER', CANVAS_S/2, CANVAS_S/2-60);
+
+  ctx.fillStyle='#ff69b4';
+  ctx.font='16px Courier New';
+  ctx.fillText(reason, CANVAS_S/2, CANVAS_S/2-25);
+
+  ctx.fillStyle='white';
+  ctx.font='bold 22px Courier New';
+  ctx.fillText(`Score: ${Math.round(score).toLocaleString()}`, CANVAS_S/2, CANVAS_S/2+20);
+
+  ctx.fillStyle='#facc15';
+  ctx.font='14px Courier New';
+  ctx.fillText(`Targets hit: ${targets}`, CANVAS_S/2, CANVAS_S/2+50);
+
+  ctx.fillStyle='#22d3ee';
+  ctx.font='14px Courier New';
+  ctx.fillText('Press  R  to restart', CANVAS_S/2, CANVAS_S/2+90);
+
+  // Watermark
+  ctx.fillStyle='#ff69b444';
+  ctx.font='bold 11px Courier New';
+  ctx.fillText('MADE BY MR. KESHAV', CANVAS_S/2, CANVAS_S/2+130);
+
+  ctx.textAlign='left';
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────
+resetGame();
+
+function loop() {
+  const {lf, rf} = computeForces();
+  lf_cur = lf; rf_cur = rf;
+
+  if(!gameOver) {
+    physicsStep(lf, rf);
+    step++;
+
+    // Trail
+    trail.push([s.x, s.y]);
+    if(trail.length > 120) trail.shift();
+
+    // Score
+    const dx = (s.x - target.x)/WORLD;
+    const dy = (s.y - target.y)/WORLD;
+    score += 1/(Math.abs(dx)+0.1) + 1/(Math.abs(dy)+0.1);
+
+    // Target reached?
+    const dist = Math.hypot(s.x-target.x, s.y-target.y);
+    if(dist < 35) {
+      targets++;
+      target = newTarget();
+      document.getElementById('status-text').textContent = `Target ${targets} hit! Next!`;
+    }
+
+    // Done?
+    const r = checkDone();
+    if(r) {
+      gameOver = true;
+      reason = r;
+      hiScore = Math.max(hiScore, Math.round(score));
+    }
+  }
+
+  // ── Draw ──────────────────────────────────────────────────────────────
+  ctx.fillStyle='#f0f0f0';
+  ctx.fillRect(0,0,CANVAS_S,CANVAS_S);
+
+  drawGrid();
+  drawBorders();
+  drawTrail();
+  drawTarget();
+  if(!gameOver) drawDrone(lf_cur, rf_cur);
+  drawHUD();
+  if(gameOver) drawGameOver();
+
+  // ── Update UI panels ──────────────────────────────────────────────────
+  document.getElementById('score-disp').textContent = Math.round(score).toLocaleString();
+  document.getElementById('hi-disp').textContent    = Math.round(hiScore).toLocaleString();
+  document.getElementById('lf-bar').style.width     = (lf_cur/10)+'%';
+  document.getElementById('rf-bar').style.width     = (rf_cur/10)+'%';
+  document.getElementById('thr-bar').style.width    = (throttle/10)+'%';
+  document.getElementById('st-targets').textContent = targets;
+  document.getElementById('st-steps').textContent   = step;
+  document.getElementById('st-angle').textContent   = (s.angle*180/Math.PI).toFixed(1)+'°';
+  document.getElementById('st-vx').textContent      = s.vx.toFixed(0);
+  document.getElementById('st-vy').textContent      = s.vy.toFixed(0);
+
+  // Key highlights
+  ['w','a','s','d','h'].forEach(k => {
+    const el = document.getElementById('k-'+k);
+    if(el) el.classList.toggle('active', !!keys[k]);
+  });
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
